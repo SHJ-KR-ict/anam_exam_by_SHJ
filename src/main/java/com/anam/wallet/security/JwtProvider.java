@@ -56,7 +56,15 @@ public class JwtProvider {
     
     // 토큰 유효성 검사
     public boolean validate(String token) {
-        try { Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(token); return true; }
-        catch (Exception e) { return false; }
+        try { 
+            Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(token); 
+            return true; 
+        } catch (io.jsonwebtoken.ExpiredJwtException e) { 
+            // 만료 에러
+            throw e; 
+        } catch (Exception e) { 
+            System.out.println("기타 토큰 에러: " + e.getMessage());
+            return false; 
+        }
     }
 }

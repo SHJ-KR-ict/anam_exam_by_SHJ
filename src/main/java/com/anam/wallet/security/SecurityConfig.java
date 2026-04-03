@@ -35,12 +35,13 @@ public class SecurityConfig {
                 .anyRequest().authenticated() // 이외의 요청은 인증 필요
             )// 필터 두번 실행 방지
             .addFilterBefore(new OncePerRequestFilter() {
+            	// 익명클래스
                 @Override
                 protected void doFilterInternal(HttpServletRequest req, HttpServletResponse res, FilterChain chain) 
                         throws ServletException, IOException {
                 	// 헤더 Bearer 토큰 확인
                     String authHeader = req.getHeader("Authorization");
-                    if (authHeader != null && authHeader.startsWith("Bearer ")) {
+                    if (authHeader != null && authHeader.startsWith("Bearer")) {
                         String token = authHeader.substring(7);
                         // 토큰 유효할 시 스프링 시큐리티에 인증상태 저장
                         try {
@@ -49,7 +50,8 @@ public class SecurityConfig {
                                     new UsernamePasswordAuthenticationToken("User", null, Collections.emptyList()));
                             }
                         // Access Token 만료시 401
-                        } catch (io.jsonwebtoken.ExpiredJwtException e) { 
+                        } catch (io.jsonwebtoken.ExpiredJwtException e) {
+                        	System.out.println("access token 5분 만료");
                             res.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                             res.getWriter().write("Access Token Expired");
                             return;
