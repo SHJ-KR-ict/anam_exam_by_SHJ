@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>이더리움 잔액 조회</title>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <style>
+        body { font-family: 'Malgun Gothic', sans-serif; text-align: center; background: #f4f6f8; padding-top: 50px; }
+        .container { background: white; padding: 40px; border-radius: 12px; display: inline-block; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 450px; }
+        input { padding: 12px; width: 80%; border: 1px solid #ddd; border-radius: 6px; margin: 10px 0; font-size: 14px; }
+        button { padding: 12px 25px; background: #1a73e8; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: bold; margin: 5px;}
+        button:hover { background: #1557b0; }
+        
+        /* 결과 및 에러 박스*/
+        .result-box, .error-box { margin-top: 25px; padding: 20px; border-radius: 8px; text-align: left; display: none; }
+        .result-box { background: #e8f0fe; }
+        .error-box { background: #fce8e6; color: #c5221f; }        
+        .token-box { margin-top: 15px; font-size: 12px; color: #5f6368; word-break: break-all; background: #f1f3f4; padding: 10px; border-radius: 4px; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h2>이더리움 잔액 조회</h2>
+
+        <div>
+            <button onclick="getToken()">토큰 발급</button>
+            <div id="tokenDisplay" class="token-box"></div>
+        </div>
+
+        <br>
+
+        <div>
+            <input type="text" id="addressInput" placeholder="0x... 지갑 주소를 입력하세요" required>
+            <br>
+            <button onclick="getBalance()">잔액 조회하기</button>
+        </div>
+
+        <div id="resultBox" class="result-box">
+            <h4 style="margin-top: 0; color: #1a73e8;">조회 성공</h4>
+            <p><strong>계좌번호:</strong> <br><span id="resAddress"></span></p>
+            <h3><strong>잔액:</strong> <span id="resBalance"></span> ETH</h3>
+        </div>
+
+        <div id="errorBox" class="error-box">
+            <h4 style="margin-top: 0;">에러 발생</h4>
+            <p id="errorMsg"></p>
+        </div>
+    </div>
+
+    <script>
+		// 세션스토리지에서 토큰 불러오기
+        const savedToken = sessionStorage.getItem("access_token");
+        const tokenDisplay = document.getElementById("tokenDisplay");
+		if (savedToken) {
+		    tokenDisplay.innerText = "보관된 토큰: " + savedToken.substring(0, 10) + "...";
+		} else {
+		    tokenDisplay.innerText = "보관된 토큰이 없습니다. 먼저 발급받으세요.";
+		}
+
+        //토큰 발급
+        async function getToken() {
+            try {
+                const response = await axios.post("/api/auth/token",{
+					username: "user"
+				});
+                const token = response.data;
+                
+                sessionStorage.setItem("access_token", token.accessToken);
+				sessionStorage.setItem("refresh_token", token.refreshToken);
+
+                // token.accessToken으로 접근하도록 수정함
+                tokenDisplay.innerText = "발급 완료: " + token.accessToken.substring(0, 10) + "..."; 
+                alert("토큰 발급 완료");
+            } catch (error) {
+                alert("토큰 발급 실패: " + (error.response?.data || error.message));
+            }
+        }
+
+        // 리프레시 토큰으로 엑세스 토큰 갱신
+        async function refreshTokenFunc() {
+            const refreshToken = sessionStorage.getItem("refresh_token");
+            if (!refreshToken) return null;
+
+            try {
+                const response = await axios.post("/api/auth/refresh", { refreshToken: refreshToken });
+                const newToken = response.data;
+                sessionStorage.setItem("access_token", newToken.accessToken);
+                sessionStorage.setItem("refresh_token", newToken.refreshToken);
+                tokenDisplay.innerText = "토큰 갱신 완료: " + newToken.accessToken.substring(0, 10) + "...";
+                return newToken.accessToken;
+            } catch (e) {
+                sessionStorage.removeItem("access_token");
+                sessionStorage.removeItem("refresh_token");
+                return null;
+            }
+        }
+
+        // 잔액 조회
+        async function getBalance() {
+            let token = sessionStorage.getItem("access_token"); 
+            const address = document.getElementById("addressInput").value;
+            
+            const resultBox = document.getElementById("resultBox");
+            const errorBox = document.getElementById("errorBox");
+
+            // 이전 결과 숨기기
+            resultBox.style.display = "none";
+            errorBox.style.display = "none";
+
+            if (!token) {
+                alert("토큰을 발급해주세요");
+                return;
+            }
+            if (!address) {
+                alert("지갑 주소를 입력해주세요");
+                return;
+            }
+
+            try {
+                const response = await axios.get(`/api/balance/${address}`, {
+                    headers: {
+                        "Authorization": `Bearer ${token}`
+                    }
+                });
+
+                document.getElementById("resAddress").innerText = address;
+                document.getElementById("resBalance").innerText = response.data; // 잔액
+                resultBox.style.display = "block";
+            } catch (error) {
+                // 401 에러(토큰 만료)시 자동 갱신
+                if (error.response && error.response.status === 401) {
+                    const newToken = await refreshTokenFunc(); // 토큰 재발급 시도
+                    if (newToken) {
+                        try {
+                            // 재발급받은 새 토큰으로 다시 잔액 조회 요청
+                            const retryResponse = await axios.get(`/api/balance/${address}`, {
+                                headers: { "Authorization": `Bearer ${newToken}` }
+                            });
+                            document.getElementById("resAddress").innerText = address;
+                            document.getElementById("resBalance").innerText = retryResponse.data;
+                            resultBox.style.display = "block";
+                            return;
+                        } catch (retryError) {
+                            document.getElementById("errorMsg").innerText = "갱신 후 조회 실패";
+                        }
+                    } else {
+                        document.getElementById("errorMsg").innerText = "세션이 만료되었습니다. 다시 로그인하세요.";
+                    }
+                } else {
+                    document.getElementById("errorMsg").innerText = error.response?.data || error.message;
+                }
+                errorBox.style.display = "block";
+            }
+        }
+    </script>
+
+</body>
+</html>
