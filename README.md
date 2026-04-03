@@ -86,5 +86,5 @@
 * `server.port=81`: 포트 번호 81번 사용
 * `jwt.expiration=300000`: Access Token 만료 시간 (5분)
 * `jwt.refreshexpiration=3600000`: Refresh Token 만료 시간 (1시간)
-* `spring.cache.caffeine.spec`: 최대 1000개의 캐시 데이터를 10초 동안 보관
+* `spring.cache.caffeine.spec`: 최대 1000개의 캐시 데이터를 10초 동안 보관(당장은 Redis와 같은 캐시서버가 없으므로 낮은 수준으로 설정)
 
